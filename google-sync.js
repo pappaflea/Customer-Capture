@@ -1,6 +1,6 @@
 'use strict';
 
-const GoogleSheetsSync = (() => {
+window.GoogleSheetsSync = (() => {
   const cfg = window.CUSTOMER_GOOGLE_CONFIG || {};
   const scopes = 'https://www.googleapis.com/auth/spreadsheets';
   const stateKey = 'customerCaptureGoogleSheets_v1';
@@ -14,6 +14,9 @@ const GoogleSheetsSync = (() => {
   let syncing = false;
   let pending = false;
   let originalSaveStorage = null;
+  let cloudReady = false;
+  const baselineKey = `${stateKey}:baseline`;
+  let baseline = JSON.parse(localStorage.getItem(baselineKey) || '{}');
 
   const configured = () => Boolean(cfg.clientId && !cfg.clientId.startsWith('PASTE_'));
   const enc = encodeURIComponent;
@@ -97,20 +100,10 @@ const GoogleSheetsSync = (() => {
     return response.json();
   }
 
+  function setEditingLocked(locked){cloudReady=!locked;const save=document.getElementById('saveBtn');if(save){save.disabled=locked;save.title=locked?'Connect Google and load the live sheet before saving.':''}const del=document.getElementById('deleteBtn');if(del&&locked)del.disabled=true}
+
   async function connect() {
-    try {
-      status('Connecting to Google Sheets…', 'busy');
-      await requestToken('consent');
-      updateButtons();
-      if (!spreadsheetId) {
-        status('Connected. Create a new Google Sheet or enter its ID in google-config.js.', 'ok');
-        return;
-      }
-      await validateSpreadsheet();
-      await pull(false);
-    } catch (e) {
-      status(`Google Sheets connection failed: ${e.message}`, 'error');
-    }
+    try{setEditingLocked(true);status('Connecting and loading the latest Google Sheet data…','busy');await requestToken('consent');updateButtons();if(!spreadsheetId){setEditingLocked(false);status('Connected. Create a new Google Sheet or select the existing live sheet.','ok');return}await validateSpreadsheet();await pull(false);setEditingLocked(false)}catch(e){setEditingLocked(true);status(`Google Sheets connection failed: ${e.message}`,'error')}
   }
 
   function disconnect() {
@@ -138,6 +131,7 @@ const GoogleSheetsSync = (() => {
       localStorage.setItem(`${stateKey}:spreadsheetId`, spreadsheetId);
       await ensureSheets();
       await syncNow('create');
+      setBaseline(records);setEditingLocked(false);
       updateButtons();
       status('Google Sheet created and populated.', 'ok');
       window.open(`https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`, '_blank', 'noopener');
@@ -146,17 +140,14 @@ const GoogleSheetsSync = (() => {
     }
   }
 
-  function mergeRecords(localRecords, remoteRecords) {
-    const map = new Map();
-    [...(remoteRecords || []), ...(localRecords || [])].forEach(r => {
-      if (!r?.id) return;
-      const existing = map.get(r.id);
-      const a = new Date(existing?.updated || existing?.created || 0).getTime();
-      const b = new Date(r.updated || r.created || 0).getTime();
-      if (!existing || b >= a) map.set(r.id, r);
-    });
-    return [...map.values()];
+  function recordHash(record) {
+    const str=JSON.stringify(record||null);let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16);
   }
+
+  function setBaseline(dataRecords){baseline={};(dataRecords||[]).forEach(r=>{if(r?.id)baseline[r.id]={hash:recordHash(r),updated:r.updated||r.created||''}});localStorage.setItem(baselineKey,JSON.stringify(baseline))}
+  function newer(a,b){return new Date(a?.updated||a?.created||0).getTime()-new Date(b?.updated||b?.created||0).getTime()}
+  function conflictCopy(record){const copy=JSON.parse(JSON.stringify(record));copy.id=globalThis.crypto?.randomUUID?globalThis.crypto.randomUUID():`conflict_${Date.now()}_${Math.random().toString(36).slice(2)}`;copy.details=copy.details||{};copy.details.customerName=`${copy.details.customerName||'Customer'} (Conflict copy)`;copy.updated=new Date().toISOString();copy._conflictCopy=true;return copy}
+  function reconcileRecords(localRecords,remoteRecords){const local=new Map((localRecords||[]).filter(r=>r?.id).map(r=>[r.id,r])),remote=new Map((remoteRecords||[]).filter(r=>r?.id).map(r=>[r.id,r])),ids=new Set([...local.keys(),...remote.keys(),...Object.keys(baseline||{})]),result=[],conflicts=[];ids.forEach(id=>{const l=local.get(id),r=remote.get(id),b=baseline[id];if(!b){if(l&&r)result.push(newer(l,r)>0?l:r);else if(l)result.push(l);else if(r)result.push(r);return}const lc=l?recordHash(l)!==b.hash:true,rc=r?recordHash(r)!==b.hash:true;if(lc&&rc){if(l&&r&&recordHash(l)===recordHash(r))result.push(r);else if(!l&&r){result.push(r);conflicts.push(`A local deletion conflicted with newer cloud changes for ${r.details?.customerName||id}. The cloud record was kept.`)}else if(l&&!r){result.push(l);conflicts.push(`A cloud deletion conflicted with local changes for ${l.details?.customerName||id}. The local record was restored.`)}else if(l&&r){result.push(r);result.push(conflictCopy(l));conflicts.push(`Both devices changed ${r.details?.customerName||id}. The cloud version was kept and the other version was saved as a Conflict copy.`)}}else if(lc){if(l)result.push(l)}else if(rc){if(r)result.push(r)}else if(r||l)result.push(r||l)});return{records:result,conflicts}}
 
   function a1(sheet, range='') {
     return `'${String(sheet).replace(/'/g, "''")}'${range ? `!${range}` : ''}`;
@@ -287,45 +278,16 @@ const GoogleSheetsSync = (() => {
     if(requests.length) await request(`spreadsheets/${enc(spreadsheetId)}:batchUpdate`,{method:'POST',body:JSON.stringify({requests})},true);
   }
 
-  async function pull(confirmMerge=true) {
-    if (!spreadsheetId) return status('No Google Sheet selected.', 'warning');
-    if (!accessToken) return connect();
-    try {
-      status('Loading live Google Sheet data…', 'busy');
-      const remote=await readRemoteRecords(true);
-      if(remote.length){
-        const merged=mergeRecords(records,remote);
-        if(JSON.stringify(merged)!==JSON.stringify(records) && (!confirmMerge || confirm(`Load and merge ${remote.length} Google Sheet customer record(s)?`))){
-          records=merged;records.forEach(migrateRecord);localStorage.setItem(STORAGE_KEY,JSON.stringify(records));resetForm();renderDashboard();renderFollowUps();renderPlanning();renderCalendar();switchTab('dashboard');
-        }
-      }
-      saveState({lastPull:new Date().toISOString(),count:records.length,spreadsheetId});
-      status(`Google Sheets live · ${records.length} customer record(s)`, 'ok');
-    } catch(e){status(`Could not load Google Sheets data: ${e.message}`, 'error')}
-  }
+  async function pull(confirmMerge=true){if(!spreadsheetId)return status('No Google Sheet selected.','warning');if(!accessToken)return connect();try{status('Loading and reconciling the latest Google Sheet data…','busy');const remote=await readRemoteRecords(true),x=reconcileRecords(records,remote);records=x.records;records.forEach(migrateRecord);localStorage.setItem(STORAGE_KEY,JSON.stringify(records));const rh=JSON.stringify(remote.map(r=>[r.id,recordHash(r)]).sort()),mh=JSON.stringify(records.map(r=>[r.id,recordHash(r)]).sort());if(rh!==mh)await writeAllSheets(records);setBaseline(records);resetForm();renderList(document.getElementById('customerSearch')?.value||'');renderDashboard();renderFollowUps();renderPlanning();renderCalendar();switchTab('dashboard');saveState({lastPull:new Date().toISOString(),count:records.length,spreadsheetId});setEditingLocked(false);status(x.conflicts.length?`Google data loaded safely. ${x.conflicts.join(' ')}`:`Google Sheets live · ${records.length} customer record(s)`,x.conflicts.length?'warning':'ok')}catch(e){setEditingLocked(true);status(`Could not load Google Sheets data: ${e.message}`,'error')}}
 
-  async function syncNow(reason='manual') {
-    if (!accessToken) { if(reason==='manual') return connect(); return; }
-    if (!spreadsheetId) { if(reason==='manual') return createSpreadsheet(); return; }
-    if(syncing){pending=true;return} syncing=true;
-    try{
-      status('Updating the live Google Sheet…','busy');
-      let remote=[];try{remote=await readRemoteRecords(true)}catch{}
-      const merged=mergeRecords(records,remote);
-      if(JSON.stringify(merged)!==JSON.stringify(records)){records=merged;records.forEach(migrateRecord);localStorage.setItem(STORAGE_KEY,JSON.stringify(records))}
-      await writeAllSheets(records);
-      if(reason==='create'||reason==='manual') await formatSheets();
-      saveState({lastSync:new Date().toISOString(),count:records.length,spreadsheetId});
-      renderList(document.getElementById('customerSearch')?.value||'');renderDashboard();renderFollowUps();renderPlanning();renderCalendar();
-      status(`Google Sheet updated · ${new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}`,'ok');
-    }catch(e){status(`Google Sheet save failed; local copy retained: ${e.message}`,'error')}
-    finally{syncing=false;if(pending){pending=false;setTimeout(()=>syncNow('queued'),400)}}
-  }
+  async function syncNow(reason='manual'){if(!accessToken){if(reason==='manual')return connect();return}if(!spreadsheetId){if(reason==='manual')return createSpreadsheet();return}if(syncing){pending=true;return}syncing=true;try{status('Checking the cloud for newer changes before saving…','busy');const remote=await readRemoteRecords(true),x=reconcileRecords(records,remote);records=x.records;records.forEach(migrateRecord);localStorage.setItem(STORAGE_KEY,JSON.stringify(records));await writeAllSheets(records);if(reason==='create'||reason==='manual')await formatSheets();setBaseline(records);saveState({lastSync:new Date().toISOString(),count:records.length,spreadsheetId});renderList(document.getElementById('customerSearch')?.value||'');renderDashboard();renderFollowUps();renderPlanning();renderCalendar();setEditingLocked(false);status(x.conflicts.length?`Saved without data loss. ${x.conflicts.join(' ')}`:`Google Sheet updated · ${new Date().toLocaleTimeString('en-ZA',{hour:'2-digit',minute:'2-digit'})}`,x.conflicts.length?'warning':'ok')}catch(e){status(`Google Sheet save failed; local copy retained: ${e.message}`,'error')}finally{syncing=false;if(pending){pending=false;setTimeout(()=>syncNow('queued'),400)}}}
 
   function scheduleSync(reason='change') {
     if(!cfg.autoSync||!accessToken||!spreadsheetId)return;
     clearTimeout(syncTimer);syncTimer=setTimeout(()=>syncNow(reason),Number(cfg.syncDelayMs)||1000);
   }
+
+  async function selectExistingSheet(){const value=prompt('Paste the existing Google Sheet URL or spreadsheet ID. Use the same sheet on every computer.');if(!value)return;const match=String(value).match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/),id=match?match[1]:String(value).trim();if(!id)return status('No valid spreadsheet ID entered.','warning');spreadsheetId=id;localStorage.setItem(`${stateKey}:spreadsheetId`,spreadsheetId);updateButtons();if(!accessToken)return connect();try{await validateSpreadsheet();await pull(false)}catch(e){status(`Could not open that Google Sheet: ${e.message}`,'error')}}
 
   function openSheet() {
     if(!spreadsheetId)return status('Create or configure a Google Sheet first.','warning');
@@ -344,10 +306,11 @@ const GoogleSheetsSync = (() => {
     const actions=document.querySelector('.top-actions');if(!actions||document.getElementById('cloudConnectBtn'))return;
     const st=document.createElement('span');st.id='cloudStatus';st.style.cssText='align-self:center;font-size:11px;max-width:250px;opacity:.9';st.textContent=configured()?'Google Sheets not connected':'Google Sheets setup required';
     const connect=document.createElement('button');connect.id='cloudConnectBtn';connect.className='btn btn-light';connect.textContent='Connect Google';connect.onclick=()=>accessToken?disconnect():connectGoogle();
+    const select=document.createElement('button');select.id='cloudSelectBtn';select.className='btn btn-outline';select.textContent='Use Existing Sheet';select.onclick=selectExistingSheet;
     const create=document.createElement('button');create.id='cloudCreateBtn';create.className='btn btn-outline';create.textContent='Create Google Sheet';create.disabled=true;create.onclick=createSpreadsheet;
     const open=document.createElement('button');open.id='cloudOpenBtn';open.className='btn btn-outline';open.textContent='Open Sheet';open.disabled=!spreadsheetId;open.onclick=openSheet;
     const sync=document.createElement('button');sync.id='cloudSyncBtn';sync.className='btn btn-outline';sync.textContent='Sync Now';sync.disabled=true;sync.onclick=()=>syncNow('manual');
-    actions.prepend(sync);actions.prepend(open);actions.prepend(create);actions.prepend(connect);actions.prepend(st);
+    actions.prepend(sync);actions.prepend(open);actions.prepend(create);actions.prepend(select);actions.prepend(connect);actions.prepend(st);
   }
 
   async function connectGoogle(){return connect()}
@@ -357,9 +320,10 @@ const GoogleSheetsSync = (() => {
     originalSaveStorage=saveStorage;
     saveStorage=function googleAwareSaveStorage(){originalSaveStorage();scheduleSync('record-change')};
     updateButtons();
+    if(configured()&&spreadsheetId)setEditingLocked(true);
   }
 
-  return {initialise,connect,disconnect,createSpreadsheet,pull,syncNow,scheduleSync,openSheet};
+  return {initialise,connect,disconnect,createSpreadsheet,selectExistingSheet,pull,syncNow,scheduleSync,openSheet,isReady:()=>cloudReady};
 })();
 
 document.addEventListener('DOMContentLoaded',()=>GoogleSheetsSync.initialise());
