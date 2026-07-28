@@ -56,11 +56,13 @@
     <button class="tab active" data-tab="dashboard">Dashboard</button>
     <button class="tab" data-tab="calendar">Calendar</button>
     <button class="tab" data-tab="planning">Smart Planning</button>
+    <button class="tab" data-tab="quickvisit">Quick Visit</button>
     <button class="tab" data-tab="details">Customer Details</button>
     <button class="tab" data-tab="contacts">Contacts</button>
     <button class="tab" data-tab="purchases">Purchases</button>
     <button class="tab" data-tab="quotes">Quotes</button>
     <button class="tab" data-tab="interactions">Calls & Appointments</button>
+    <button class="tab" data-tab="timeline">Activity Timeline</button>
     <button class="tab" data-tab="followups">Follow-ups</button>
   </div>
 
@@ -68,14 +70,14 @@
     <div class="card">
       <div class="section-title"><h3>Dashboard Filters</h3><div class="section-controls"><select id="dashboardGroupFilter" title="Filter the dashboard by Project / Lead Group"><option value="">All Project / Lead Groups</option></select><select id="dashboardStatusFilter" title="Filter the dashboard by customer status"><option value="">All Customer Statuses</option><option>Prospect</option><option>Working / In Progress</option><option>Active</option><option>Dormant</option><option>On Hold</option><option>Lost</option></select><select id="dashboardPeriod" title="Performance period"><option value="month">This Month</option><option value="30">Last 30 Days</option><option value="quarter">This Quarter</option><option value="year">This Year</option><option value="all">All Time</option></select></div></div>
       <div class="dashboard-kpis">
-        <div class="metric info"><div class="metric-label">Customers Seen</div><div class="metric-value" id="dashSeen">0</div><div class="metric-sub">Unique in-person visits</div></div>
-        <div class="metric good"><div class="metric-label">Converted</div><div class="metric-value" id="dashConverted">0</div><div class="metric-sub">Accounts opened</div></div>
-        <div class="metric alert"><div class="metric-label">Lost</div><div class="metric-value" id="dashLost">0</div><div class="metric-sub">Opportunities lost</div></div>
+        <div class="metric info" id="metricSeen" title="Show customer status details"><div class="metric-label">Customers Seen</div><div class="metric-value" id="dashSeen">0</div><div class="metric-sub">Unique in-person visits · click to view</div></div>
+        <div class="metric good" id="metricConverted" title="Show active customers"><div class="metric-label">Converted</div><div class="metric-value" id="dashConverted">0</div><div class="metric-sub">Accounts opened · click to view</div></div>
+        <div class="metric alert" id="metricLost" title="Show lost customers"><div class="metric-label">Lost</div><div class="metric-value" id="dashLost">0</div><div class="metric-sub">Opportunities lost · click to view</div></div>
         <div class="metric"><div class="metric-label">Conversion Rate</div><div class="metric-value" id="dashConversionRate">0%</div><div class="metric-sub">Converted ÷ decided</div></div>
         <div class="metric"><div class="metric-label">Avg. Days to Open</div><div class="metric-value" id="dashAvgOpen">—</div><div class="metric-sub">Lead date to opened date</div></div>
-        <div class="metric warn"><div class="metric-label">Open Quotes</div><div class="metric-value" id="dashOpenQuotes">0</div><div class="metric-sub">Pending customer decision</div></div>
+        <div class="metric warn" id="metricOpenQuotes" title="Open quote actions"><div class="metric-label">Open Quotes</div><div class="metric-value" id="dashOpenQuotes">0</div><div class="metric-sub">Pending decision · click to view</div></div>
         <div class="metric"><div class="metric-label">Quote Win Rate</div><div class="metric-value" id="dashQuoteWinRate">0%</div><div class="metric-sub">Accepted ÷ decided quotes</div></div>
-        <div class="metric alert"><div class="metric-label">Overdue Actions</div><div class="metric-value" id="dashOverdue">0</div><div class="metric-sub">Follow-ups and planning</div></div>
+        <div class="metric alert" id="metricOverdue" title="Open overdue follow-ups"><div class="metric-label">Overdue Actions</div><div class="metric-value" id="dashOverdue">0</div><div class="metric-sub">Follow-ups · click to view</div></div>
       </div>
     </div>
     <div class="dashboard-grid">
@@ -114,6 +116,37 @@
       <div class="notice">Rules used: short-term prospects should be contacted every 14 days, long-term prospects every 30 days, active customers every 60 days; overdue follow-ups, missed appointments, account targets and pending quotes are prioritised automatically.</div>
       <div class="summary-line" id="planSummary"></div>
       <div class="table-wrap"><table><thead><tr><th>Priority</th><th>Customer</th><th>Category / Group</th><th>Due</th><th>Type</th><th>Recommended Action</th><th>Reason</th><th>Owner</th><th>Quote No.</th><th></th></tr></thead><tbody id="planningBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-quickvisit">
+    <div class="card">
+      <div class="section-title"><h3>Quick Visit / Call Capture</h3><span class="muted">Record the interaction and next action in one step.</span></div>
+      <div class="grid">
+        <div class="field span2"><label class="required">Customer</label><select id="quickCustomer"><option value="">Select customer...</option></select></div>
+        <div class="field"><label>Date</label><input id="quickDate" type="date"></div>
+        <div class="field"><label>Time</label><input id="quickTime" type="time"></div>
+        <div class="field"><label>Activity Type</label><select id="quickType"><option>In-person Visit</option><option>Phone Call</option><option>WhatsApp</option><option>Email</option><option>Appointment</option><option>Teams / Video Call</option></select></div>
+        <div class="field"><label>Contact Person</label><input id="quickContact"></div>
+        <div class="field span2"><label>Purpose / Subject</label><input id="quickSubject"></div>
+        <div class="field span3"><label>Discussion Summary</label><textarea id="quickSummary"></textarea></div>
+        <div class="field span3"><label>Outcome</label><textarea id="quickOutcome"></textarea></div>
+        <div class="field"><label>Quote Required?</label><select id="quickQuoteRequired"><option>No</option><option>Yes</option></select></div>
+        <div class="field"><label>Quote Number</label><input id="quickQuoteNumber"></div>
+        <div class="field"><label>Next Follow-up Date</label><input id="quickFollowUpDate" type="date"></div>
+        <div class="field"><label>Next Follow-up Time</label><input id="quickFollowUpTime" type="time"></div>
+        <div class="field"><label>Customer Status</label><select id="quickStatus"><option value="">Keep current status</option><option>Prospect</option><option>Working / In Progress</option><option>Active</option><option>Dormant</option><option>On Hold</option><option>Lost</option></select></div>
+        <div class="field"><label>Owner</label><input id="quickOwner"></div>
+      </div>
+      <div class="table-foot"><button class="btn btn-primary" id="quickSaveBtn">Save Visit & Next Action</button><div class="footer-note" id="quickMessage">The activity will appear in the customer timeline, calendar and Google Sheet.</div></div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-timeline">
+    <div class="card">
+      <div class="section-title"><h3>Complete Customer Activity Timeline</h3><button class="btn btn-secondary btn-small" id="timelineQuickBtn">+ Quick Visit</button></div>
+      <div class="notice" id="timelineNotice">Open a customer to view calls, visits, appointments, quotes, follow-ups and account milestones together.</div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Subject / Reference</th><th>Summary / Outcome</th><th>Contact</th><th>Owner</th><th>Status</th></tr></thead><tbody id="timelineBody"></tbody></table></div>
     </div>
   </section>
 
@@ -254,10 +287,17 @@ function buildXlsx(dataRecords){return makeZip(workbookFiles(dataRecords))}
 async function saveExcel(){if(currentId&&collectDetails().customerName){if(!saveCustomer())return}if(!records.length&&!confirm('There are no saved customers. Create a blank workbook anyway?'))return;const bytes=buildXlsx(records),name='Customer_Sales_Activity_Register_'+todayIso()+'.xlsx';try{if('showSaveFilePicker'in window){if(!excelFileHandle)excelFileHandle=await window.showSaveFilePicker({suggestedName:name,types:[{description:'Excel Workbook',accept:{'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':['.xlsx']}}]});const writable=await excelFileHandle.createWritable();await writable.write(bytes);await writable.close();setStatus('Excel workbook saved successfully.','good')}else{downloadBlob(new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),name);setStatus('Excel workbook downloaded.','good')}}catch(e){if(e.name!=='AbortError')setStatus('Could not save Excel workbook: '+e.message,'bad')}}
 function bind(){document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>switchTab(t.dataset.tab));$('newCustomerBtn').onclick=newCustomer;$('newTopBtn').onclick=newCustomer;$('saveBtn').onclick=saveCustomer;$('deleteBtn').onclick=deleteCustomer;$('addContactBtn').onclick=$('addContactBtn2').onclick=()=>addContactRow();$('addPurchaseBtn').onclick=$('addPurchaseBtn2').onclick=()=>addPurchaseRow();$('addQuoteBtn').onclick=$('addQuoteBtn2').onclick=()=>addQuoteRow();$('addInteractionBtn').onclick=$('addInteractionBtn2').onclick=()=>addInteractionRow();$('customerSearch').oninput=e=>renderList(e.target.value);$('dashboardPeriod').onchange=renderDashboard;$('dashboardGroupFilter').onchange=renderDashboard;$('followUpFilter').onchange=renderFollowUps;$('followUpSearch').oninput=renderFollowUps;$('planPriority').onchange=renderPlanning;$('planType').onchange=renderPlanning;$('planSearch').oninput=renderPlanning;$('viewPlanningBtn').onclick=()=>switchTab('planning');$('calPrev').onclick=()=>{calendarCursor.setMonth(calendarCursor.getMonth()-1);renderCalendar()};$('calNext').onclick=()=>{calendarCursor.setMonth(calendarCursor.getMonth()+1);renderCalendar()};$('calToday').onclick=()=>{calendarCursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);renderCalendar()};$('backupBtn').onclick=backupJson;$('restoreBtn').onclick=()=>$('restoreInput').click();$('restoreInput').onchange=e=>{if(e.target.files[0])restoreJson(e.target.files[0]);e.target.value=''};$('excelBtn').onclick=saveExcel;detailIds.forEach(id=>$(id).oninput=()=>{updateKpis();if(['contactPerson'].includes(id))updateDatalists()});window.addEventListener('beforeunload',e=>{if(collectDetails().customerName&&!currentId){e.preventDefault();e.returnValue=''}})}
 function init(){loadStorage();bind();resetForm();renderDashboard();renderFollowUps();renderPlanning();renderCalendar();switchTab('dashboard')}
+function updateQuickCustomerOptions(){const sel=$('quickCustomer');if(!sel)return;const current=sel.value;sel.innerHTML='<option value="">Select customer...</option>'+[...records].sort((a,b)=>String(a.details?.customerName||'').localeCompare(String(b.details?.customerName||''))).map(r=>`<option value="${escHtml(r.id)}">${escHtml(r.details?.customerName||'Unnamed customer')}</option>`).join('');if(records.some(r=>r.id===current))sel.value=current;else if(currentId)sel.value=currentId}
+function resetQuickVisit(){['quickContact','quickSubject','quickSummary','quickOutcome','quickQuoteNumber','quickFollowUpDate','quickFollowUpTime'].forEach(id=>$(id).value='');$('quickDate').value=todayIso();$('quickTime').value='';$('quickType').value='In-person Visit';$('quickQuoteRequired').value='No';$('quickStatus').value='';const r=records.find(x=>x.id===$('quickCustomer').value);$('quickOwner').value=r?.details?.assignedRep||''}
+function saveQuickVisit(){const r=records.find(x=>x.id===$('quickCustomer').value);if(!r){$('quickMessage').textContent='Please select a customer first.';return}const subject=$('quickSubject').value.trim(),summary=$('quickSummary').value.trim(),outcome=$('quickOutcome').value.trim();if(!subject&&!summary&&!outcome){$('quickMessage').textContent='Please enter a purpose, summary or outcome.';return}r.interactions=r.interactions||[];r.interactions.push({activityDate:$('quickDate').value||todayIso(),activityTime:$('quickTime').value,type:$('quickType').value,contact:$('quickContact').value.trim(),subject,summary,outcome,quoteRequired:$('quickQuoteRequired').value,quoteNumber:$('quickQuoteNumber').value.trim(),followUpDate:$('quickFollowUpDate').value,followUpTime:$('quickFollowUpTime').value,owner:$('quickOwner').value.trim(),status:'Completed'});const newStatus=$('quickStatus').value;if(newStatus){r.details.customerStatus=newStatus;if(newStatus==='Lost'&&!r.details.lostDate)r.details.lostDate=todayIso();if(newStatus==='Active'&&!r.details.accountOpenedDate)r.details.accountOpenedDate=todayIso()}r.updated=new Date().toISOString();currentId=r.id;saveStorage();renderList($('customerSearch').value);renderDashboard();renderPlanning();renderFollowUps();renderCalendar();renderTimeline();$('quickMessage').textContent='Saved successfully. Google Sheets synchronisation has been scheduled.';resetQuickVisit()}
+function customerTimeline(r){if(!r)return[];const d=r.details||{},items=[];if(d.leadDate)items.push({date:d.leadDate,type:'Lead',subject:'Customer lead created',detail:d.leadSource||d.leadSourceDetail||'',contact:d.contactPerson||'',owner:d.assignedRep||'',status:'Prospect'});if(d.accountOpenedDate)items.push({date:d.accountOpenedDate,type:'Account',subject:'Account opened / converted',detail:'',contact:d.contactPerson||'',owner:d.assignedRep||'',status:'Active'});if(d.lostDate)items.push({date:d.lostDate,type:'Account',subject:'Opportunity lost',detail:d.lostReason||'',contact:d.contactPerson||'',owner:d.assignedRep||'',status:'Lost'});(r.interactions||[]).forEach(i=>{const date=i.activityDate||i.date||'';if(date)items.push({date,type:i.type||'Activity',subject:i.subject||'',detail:[i.summary,i.outcome,i.quoteNumber&&`Quote ${i.quoteNumber}`].filter(Boolean).join(' · '),contact:i.contact||'',owner:i.owner||d.assignedRep||'',status:i.status||''});if(i.followUpDate)items.push({date:i.followUpDate,type:'Follow-up',subject:i.subject||i.quoteNumber||'Customer follow-up',detail:i.outcome||'',contact:i.contact||'',owner:i.owner||d.assignedRep||'',status:i.status||'Open'})});(r.quotes||[]).forEach(q=>{if(q.quoteDate)items.push({date:q.quoteDate,type:'Quote',subject:q.quoteNumber||'Quote',detail:[q.description,q.outcome,Number(q.amount)?money(q.amount):''].filter(Boolean).join(' · '),contact:q.contact||'',owner:q.owner||d.assignedRep||'',status:q.status||''});if(q.followUpDate)items.push({date:q.followUpDate,type:'Quote Follow-up',subject:q.quoteNumber||q.description||'Quote follow-up',detail:q.outcome||'',contact:q.contact||'',owner:q.owner||d.assignedRep||'',status:q.status||'Pending'})});return items.sort((a,b)=>String(b.date).localeCompare(String(a.date))||String(a.type).localeCompare(String(b.type)))}
+function renderTimeline(){const r=currentRecord(),body=$('timelineBody');if(!body)return;$('timelineNotice').textContent=r?`Complete history for ${r.details?.customerName||'this customer'}.`:'Open a customer to view its complete activity history.';const items=customerTimeline(r);body.innerHTML=items.length?items.map(x=>`<tr><td>${escHtml(x.date)}</td><td><strong>${escHtml(x.type)}</strong></td><td>${escHtml(x.subject)}</td><td>${escHtml(x.detail)}</td><td>${escHtml(x.contact)}</td><td>${escHtml(x.owner)}</td><td>${escHtml(x.status)}</td></tr>`).join(''):'<tr><td colspan="7"><div class="empty-state">No customer activity has been recorded yet.</div></td></tr>'}
+function setupUpgradeControls(){updateQuickCustomerOptions();resetQuickVisit();$('quickCustomer').onchange=resetQuickVisit;$('quickSaveBtn').onclick=saveQuickVisit;$('timelineQuickBtn').onclick=()=>{updateQuickCustomerOptions();if(currentId)$('quickCustomer').value=currentId;resetQuickVisit();switchTab('quickvisit')};document.querySelector('[data-tab="quickvisit"]').onclick=()=>{updateQuickCustomerOptions();if(currentId)$('quickCustomer').value=currentId;resetQuickVisit();switchTab('quickvisit')};document.querySelector('[data-tab="timeline"]').onclick=()=>{renderTimeline();switchTab('timeline')};['metricSeen','metricConverted','metricLost','metricOpenQuotes','metricOverdue'].forEach(id=>{const el=$(id);if(el)el.style.cursor='pointer'});$('metricSeen').onclick=()=>{$('dashboardStatusFilter').value='';renderDashboard();$('dashboardCustomers').scrollIntoView({behavior:'smooth'})};$('metricConverted').onclick=()=>{$('dashboardStatusFilter').value='Active';renderDashboard();$('dashboardCustomers').scrollIntoView({behavior:'smooth'})};$('metricLost').onclick=()=>{$('dashboardStatusFilter').value='Lost';renderDashboard();$('dashboardCustomers').scrollIntoView({behavior:'smooth'})};$('metricOpenQuotes').onclick=()=>{$('planType').value='Quote';renderPlanning();switchTab('planning')};$('metricOverdue').onclick=()=>{$('followUpFilter').value='overdue';renderFollowUps();switchTab('followups')};}
 const renderDashboardBase=renderDashboard;
 renderDashboard=function(){renderDashboardBase();renderDashboardCustomers(dashboardRecords())};
 document.addEventListener('DOMContentLoaded',init);
 document.addEventListener('DOMContentLoaded',()=>{$('dashboardStatusFilter').onchange=renderDashboard});
+document.addEventListener('DOMContentLoaded',setupUpgradeControls);
 </script>
 
 <script src="google-config.js"></script>
