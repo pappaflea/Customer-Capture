@@ -12,3 +12,11 @@ window.CUSTOMER_GOOGLE_CONFIG = {
   autoSync: true,
   syncDelayMs: 1000
 };
+
+/* Load the optional PowerPoint reporting module without changing the main app file. */
+(() => {
+  const script = document.createElement('script');
+  script.src = 'powerpoint-report.js?v=1';
+  script.defer = true;
+  document.head.appendChild(script);
+})();
