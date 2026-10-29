@@ -20,3 +20,11 @@ window.CUSTOMER_GOOGLE_CONFIG = {
   script.defer = true;
   document.head.appendChild(script);
 })();
+
+/* Load the simplified workflow interface. */
+(() => {
+  const script = document.createElement('script');
+  script.src = 'simplified-ui.js?v=1';
+  script.defer = true;
+  document.head.appendChild(script);
+})();
